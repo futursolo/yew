@@ -390,7 +390,6 @@ mod tests {
         #[cfg(feature = "wasm_test")]
         create_message: Option<bool>,
         update_message: RefCell<Option<bool>>,
-        view_message: RefCell<Option<bool>>,
         rendered_message: RefCell<Option<bool>>,
     }
 
@@ -440,10 +439,7 @@ mod tests {
             false
         }
 
-        fn view(&self, ctx: &Context<Self>) -> Html {
-            if let Some(msg) = ctx.props().view_message.borrow_mut().take() {
-                ctx.link().send_message(msg);
-            }
+        fn view(&self, _ctx: &Context<Self>) -> Html {
             self.lifecycle.borrow_mut().push("view".into());
             html! { <Child lifecycle={self.lifecycle.clone()} /> }
         }
@@ -484,38 +480,6 @@ mod tests {
                 lifecycle: lifecycle.clone(),
                 #[cfg(feature = "wasm_test")]
                 create_message: Some(false),
-                ..Props::default()
-            },
-            &[
-                "create",
-                "view",
-                "child rendered",
-                "rendered(true)",
-                "update(false)",
-            ],
-        );
-
-        test_lifecycle(
-            Props {
-                lifecycle: lifecycle.clone(),
-                view_message: RefCell::new(Some(true)),
-                ..Props::default()
-            },
-            &[
-                "create",
-                "view",
-                "child rendered",
-                "rendered(true)",
-                "update(true)",
-                "view",
-                "rendered(false)",
-            ],
-        );
-
-        test_lifecycle(
-            Props {
-                lifecycle: lifecycle.clone(),
-                view_message: RefCell::new(Some(false)),
                 ..Props::default()
             },
             &[

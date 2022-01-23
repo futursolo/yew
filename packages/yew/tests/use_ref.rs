@@ -14,9 +14,18 @@ fn use_ref_works() {
         let ref_example = use_mut_ref(|| 0);
         *ref_example.borrow_mut().deref_mut() += 1;
         let counter = use_state(|| 0);
-        if *counter < 5 {
-            counter.set(*counter + 1)
-        }
+
+        use_effect_with_deps(
+            |counter| {
+                if **counter < 5 {
+                    counter.set(**counter + 1)
+                }
+
+                || {}
+            },
+            counter,
+        );
+
         html! {
             <div>
                 {"The test output is: "}

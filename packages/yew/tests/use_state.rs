@@ -11,8 +11,18 @@ fn use_state_works() {
     #[function_component(UseComponent)]
     fn use_state_comp() -> Html {
         let counter = use_state(|| 0);
-        if *counter < 5 {
-            counter.set(*counter + 1)
+        {
+            let counter = counter.clone();
+            use_effect_with_deps(
+                |counter| {
+                    if **counter < 5 {
+                        counter.set(**counter + 1)
+                    }
+
+                    || {}
+                },
+                counter,
+            );
         }
         html! {
             <div>
@@ -44,16 +54,19 @@ fn multiple_use_state_setters() {
             },
             (),
         );
-        let another_scope = {
+        {
             let counter = counter.clone();
-            move || {
-                if *counter < 11 {
-                    // 2nd location
-                    counter.set(*counter + 10)
-                }
-            }
-        };
-        another_scope();
+            use_effect_with_deps(
+                |counter| {
+                    if **counter < 11 {
+                        counter.set(**counter + 1)
+                    }
+
+                    || {}
+                },
+                counter,
+            );
+        }
         html! {
             <div>
                 { "Test Output: " }
@@ -80,7 +93,15 @@ fn use_state_eq_works() {
     fn use_state_comp() -> Html {
         RENDER_COUNT.fetch_add(1, Ordering::Relaxed);
         let counter = use_state_eq(|| 0);
-        counter.set(1);
+
+        {
+            let counter = counter.clone();
+            use_effect(move || {
+                counter.set(1);
+
+                || {}
+            });
+        }
 
         html! {
             <div>
