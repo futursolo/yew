@@ -1,6 +1,7 @@
 mod common;
 
 use common::obtain_result_by_id;
+use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen_test::*;
 use yew::prelude::*;
@@ -156,7 +157,7 @@ fn use_context_update_works() {
 
     #[function_component]
     fn RenderCounter(props: &RenderCounterProps) -> Html {
-        let counter = use_mut_ref(|| 0);
+        let counter = use_memo(|_| RefCell::new(0), ());
         *counter.borrow_mut() += 1;
         html! {
             <>
@@ -177,7 +178,7 @@ fn use_context_update_works() {
 
     #[function_component]
     fn ContextOutlet(props: &ContextOutletProps) -> Html {
-        let counter = use_mut_ref(|| 0);
+        let counter = use_memo(|_| RefCell::new(0), ());
         *counter.borrow_mut() += 1;
 
         let ctx = use_context::<Rc<MyContext>>().expect("context not passed down");
@@ -197,7 +198,7 @@ fn use_context_update_works() {
         type MyContextProvider = ContextProvider<Rc<MyContext>>;
 
         let ctx = use_state(|| MyContext("hello".into()));
-        let rendered = use_mut_ref(|| 0);
+        let rendered = use_memo(|_| RefCell::new(0), ());
 
         // this is used to force an update specific to test-2
         let magic_rc = use_state(|| 0);

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -83,7 +84,7 @@ fn use_reducer_eq_works() {
             content: HashSet::default(),
         });
 
-        let render_count = use_mut_ref(|| 0);
+        let render_count = use_memo(|_| RefCell::new(0), ());
 
         let render_count = {
             let mut render_count = render_count.borrow_mut();

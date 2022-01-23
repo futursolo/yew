@@ -1,7 +1,6 @@
 mod common;
 
 use common::obtain_result;
-use std::ops::DerefMut;
 use wasm_bindgen_test::*;
 use yew::prelude::*;
 
@@ -20,7 +19,7 @@ fn use_ref_works() {
                 let should_render = ref_example.with_mut(|m| {
                     *m += 1;
 
-                    ref_example < 5
+                    m < 5
                 });
 
                 if should_render {
