@@ -12,8 +12,6 @@ pub(crate) use scope::Scoped;
 pub use scope::{AnyScope, Scope, SendAsMessage};
 use std::rc::Rc;
 
-pub(crate) use lifecycle::IS_RENDERING;
-
 /// The [`Component`]'s context. This contains component's [`Scope`] and and props and
 /// is passed to every lifecycle method.
 #[derive(Debug)]

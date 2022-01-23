@@ -1,11 +1,10 @@
 use std::cell::{BorrowError, BorrowMutError, RefCell};
-use std::rc::Rc;
-
-use crate::functional::{hook, use_memo};
-use crate::html::IS_RENDERING;
 use std::fmt;
+use std::rc::Rc;
+#[cfg(debug_assertions)]
 use std::sync::atomic::Ordering;
 
+use crate::functional::{hook, use_memo};
 use crate::NodeRef;
 
 /// State handle for [`use_ref`].
@@ -69,7 +68,8 @@ where
     /// This method will panic if it is called in the view function or the mutable reference cannot
     /// be acquired.
     pub fn with_mut<O>(&self, f: impl FnOnce(&mut T) -> O) -> O {
-        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+        #[cfg(debug_assertions)]
+        if crate::scheduler::IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
             panic!("You cannot mutate states during rendering.");
         }
 
@@ -87,7 +87,8 @@ where
         &self,
         f: impl FnOnce(&mut T) -> O,
     ) -> std::result::Result<O, BorrowMutError> {
-        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+        #[cfg(debug_assertions)]
+        if crate::scheduler::IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
             panic!("You cannot mutate states during rendering.");
         }
 

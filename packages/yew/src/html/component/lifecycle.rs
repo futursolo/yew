@@ -10,12 +10,9 @@ use crate::{Context, NodeRef};
 #[cfg(feature = "ssr")]
 use futures::channel::oneshot;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(debug_assertions)]
+use std::sync::atomic::Ordering;
 use web_sys::Element;
-
-thread_local! {
-    pub(crate) static IS_RENDERING: AtomicBool = AtomicBool::default();
-}
 
 pub(crate) struct ComponentState<COMP: BaseComponent> {
     pub(crate) component: Box<COMP>,
@@ -212,13 +209,15 @@ impl<COMP: BaseComponent> Runnable for RenderRunner<COMP> {
             #[cfg(debug_assertions)]
             crate::virtual_dom::vcomp::log_event(state.vcomp_id, "render");
 
-            IS_RENDERING.with(|m| {
+            #[cfg(debug_assertions)]
+            scheduler::IS_RENDERING.with(|m| {
                 m.store(true, Ordering::Relaxed);
             });
 
             let html = state.component.view(&state.context);
 
-            IS_RENDERING.with(|m| {
+            #[cfg(debug_assertions)]
+            scheduler::IS_RENDERING.with(|m| {
                 m.store(false, Ordering::Relaxed);
             });
 

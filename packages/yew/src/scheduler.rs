@@ -3,6 +3,11 @@
 use std::cell::RefCell;
 use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::rc::Rc;
+use std::sync::atomic::AtomicBool;
+
+thread_local! {
+    pub(crate) static IS_RENDERING: AtomicBool = AtomicBool::default();
+}
 
 /// Alias for Rc<RefCell<T>>
 pub type Shared<T> = Rc<RefCell<T>>;
