@@ -1,8 +1,101 @@
-use std::cell::RefCell;
+use std::cell::{BorrowError, BorrowMutError, RefCell};
 use std::rc::Rc;
 
 use crate::functional::{hook, use_memo};
+use crate::html::IS_RENDERING;
+use std::fmt;
+use std::sync::atomic::Ordering;
+
 use crate::NodeRef;
+
+/// State handle for [`use_ref`].
+///
+/// Compare to [RefCell], from the standard library, this handle is render-time safe.
+pub struct UseRefHandle<T>
+where
+    T: 'static,
+{
+    inner: Rc<RefCell<T>>,
+}
+
+impl<T> fmt::Debug for UseRefHandle<T>
+where
+    T: 'static + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UseRefHandle").field("inner", &"_").finish()
+    }
+}
+
+impl<T> Clone for UseRefHandle<T>
+where
+    T: 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T> UseRefHandle<T>
+where
+    T: 'static,
+{
+    /// Acquires a reference to the value held in the handle.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the immutable reference cannot be acquired.
+    pub fn with<O>(&self, f: impl FnOnce(&T) -> O) -> O {
+        let val = self.inner.borrow();
+
+        f(&*val)
+    }
+
+    /// Acquires a reference to the value held in the handle.
+    ///
+    /// Returns Err(std::cell::BorrowError) if it fails to borrow the underlying value.
+    pub fn try_with<O>(&self, f: impl FnOnce(&T) -> O) -> std::result::Result<O, BorrowError> {
+        let val = self.inner.try_borrow()?;
+
+        Ok(f(&*val))
+    }
+
+    /// Acquires a mutable reference to the value in this.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if it is called in the view function or the mutable reference cannot
+    /// be acquired.
+    pub fn with_mut<O>(&self, f: impl FnOnce(&mut T) -> O) -> O {
+        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+            panic!("You cannot mutate states during rendering.");
+        }
+
+        let mut val = self.inner.borrow_mut();
+
+        f(&mut *val)
+    }
+
+    /// Acquires a mutable reference to the value in this.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if it is called in the view function.
+    pub fn try_with_mut<O>(
+        &self,
+        f: impl FnOnce(&mut T) -> O,
+    ) -> std::result::Result<O, BorrowMutError> {
+        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+            panic!("You cannot mutate states during rendering.");
+        }
+
+        let mut val = self.inner.try_borrow_mut()?;
+
+        Ok(f(&mut *val))
+    }
+}
 
 /// This hook is used for obtaining a mutable reference to a stateful value.
 /// Its state persists across renders.
@@ -53,6 +146,21 @@ use crate::NodeRef;
 #[hook]
 pub fn use_mut_ref<T: 'static>(initial_value: impl FnOnce() -> T) -> Rc<RefCell<T>> {
     use_memo(|_| RefCell::new(initial_value()), ())
+}
+
+/// This hook is used for obtaining a mutable reference to a stateful value.
+/// Its state persists across renders.
+///
+/// # Note
+///
+/// It is important to note that you do not get notified of state changes.
+/// If you need the component to be re-rendered on state change, consider using [`use_state`](super::use_state()).
+///
+#[hook]
+pub fn use_ref<T: 'static>(initial_value: impl FnOnce() -> T) -> UseRefHandle<T> {
+    let inner = use_memo(|_| RefCell::new(initial_value()), ());
+
+    UseRefHandle { inner }
 }
 
 /// This hook is used for obtaining a [`NodeRef`].

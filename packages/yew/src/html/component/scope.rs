@@ -3,6 +3,7 @@
 use super::{
     lifecycle::{
         ComponentState, CreateRunner, DestroyRunner, RenderRunner, UpdateEvent, UpdateRunner,
+        IS_RENDERING,
     },
     BaseComponent,
 };
@@ -16,6 +17,7 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell};
 use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::atomic::Ordering;
 use std::{fmt, iter};
 use web_sys::{Element, Node};
 
@@ -277,6 +279,9 @@ impl<COMP: BaseComponent> Scope<COMP> {
     where
         T: Into<COMP::Message>,
     {
+        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+            panic!("You cannot send messages during rendering.");
+        }
         self.push_update(UpdateEvent::Message(msg.into()));
     }
 
@@ -289,6 +294,9 @@ impl<COMP: BaseComponent> Scope<COMP> {
     /// Please be aware that currently this method synchronously
     /// schedules calls to the [Component](crate::html::Component) interface.
     pub fn send_message_batch(&self, messages: Vec<COMP::Message>) {
+        if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+            panic!("You cannot send messages during rendering.");
+        }
         // There is no reason to schedule empty batches.
         // This check is especially handy for the batch_callback method.
         if messages.is_empty() {
@@ -434,6 +442,10 @@ mod feat_io {
             M: Into<COMP::Message>,
             F: Future<Output = M> + 'static,
         {
+            if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+                panic!("You cannot send messages during rendering.");
+            }
+
             let link = self.clone();
             let js_future = async move {
                 let message: COMP::Message = future.await.into();
@@ -449,6 +461,10 @@ mod feat_io {
         where
             F: Future<Output = Vec<COMP::Message>> + 'static,
         {
+            if IS_RENDERING.with(|m| m.load(Ordering::Relaxed)) {
+                panic!("You cannot send messages during rendering.");
+            }
+
             let link = self.clone();
             let js_future = async move {
                 let messages: Vec<COMP::Message> = future.await;

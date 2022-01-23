@@ -10,7 +10,12 @@ use crate::{Context, NodeRef};
 #[cfg(feature = "ssr")]
 use futures::channel::oneshot;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use web_sys::Element;
+
+thread_local! {
+    pub(crate) static IS_RENDERING: AtomicBool = AtomicBool::default();
+}
 
 pub(crate) struct ComponentState<COMP: BaseComponent> {
     pub(crate) component: Box<COMP>,
@@ -207,7 +212,17 @@ impl<COMP: BaseComponent> Runnable for RenderRunner<COMP> {
             #[cfg(debug_assertions)]
             crate::virtual_dom::vcomp::log_event(state.vcomp_id, "render");
 
-            match state.component.view(&state.context) {
+            IS_RENDERING.with(|m| {
+                m.store(true, Ordering::Relaxed);
+            });
+
+            let html = state.component.view(&state.context);
+
+            IS_RENDERING.with(|m| {
+                m.store(false, Ordering::Relaxed);
+            });
+
+            match html {
                 Ok(m) => {
                     // Currently not suspended, we remove any previous suspension and update
                     // normally.
