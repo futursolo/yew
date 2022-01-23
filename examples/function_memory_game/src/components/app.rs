@@ -1,5 +1,4 @@
 use gloo::timers::callback::{Interval, Timeout};
-use std::{cell::RefCell, rc::Rc};
 use yew::prelude::*;
 use yew::{function_component, html};
 
@@ -14,8 +13,8 @@ use crate::state::{Action, State};
 pub fn App() -> Html {
     let state = use_reducer(State::reset);
     let sec_past = use_state(|| 0_u32);
-    let sec_past_timer: Rc<RefCell<Option<Interval>>> = use_mut_ref(|| None);
-    let flip_back_timer: Rc<RefCell<Option<Timeout>>> = use_mut_ref(|| None);
+    let sec_past_timer = use_ref(|| -> Option<Interval> { None });
+    let flip_back_timer = use_ref(|| -> Option<Timeout> { None });
     let sec_past_time = *sec_past;
 
     use_effect_with_deps(
@@ -28,24 +27,30 @@ pub fn App() -> Html {
             else if *sec_past == 0 && state.last_card.is_some() {
                 let sec_past = sec_past.clone();
                 let mut sec = *sec_past;
-                *sec_past_timer.borrow_mut() = Some(Interval::new(1000, move || {
-                    sec += 1;
-                    sec_past.set(sec);
-                }));
+                sec_past_timer.with_mut(|m| {
+                    *m = Some(Interval::new(1000, move || {
+                        sec += 1;
+                        sec_past.set(sec);
+                    }))
+                });
             }
             // game over
             else if state.status == Status::Passed {
-                *sec_past_timer.borrow_mut() = None;
-                *flip_back_timer.borrow_mut() = None;
+                sec_past_timer.with_mut(|m| *m = None);
+                flip_back_timer.with_mut(|m| *m = None);
+
                 state.dispatch(Action::TrySaveBestScore(*sec_past));
             }
             // match failed
             else if state.rollback_cards.is_some() {
                 let cloned_state = state.clone();
                 let cloned_rollback_cards = state.rollback_cards.clone().unwrap();
-                *flip_back_timer.borrow_mut() = Some(Timeout::new(1000, move || {
-                    cloned_state.dispatch(Action::RollbackCards(cloned_rollback_cards));
-                }));
+
+                flip_back_timer.with_mut(|m| {
+                    *m = Some(Timeout::new(1000, move || {
+                        cloned_state.dispatch(Action::RollbackCards(cloned_rollback_cards));
+                    }))
+                });
             }
             || ()
         },

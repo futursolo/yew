@@ -4,11 +4,14 @@ use std::rc::Rc;
 use crate::*;
 use yew::prelude::*;
 
+type MaybeOutputFn<T> = Option<Rc<dyn Fn(<T as Worker>::Output)>>;
+
 /// State handle for [`use_bridge`] hook
 pub struct UseBridgeHandle<T>
 where
     T: Bridged,
 {
+    on_output: Rc<RefCell<MaybeOutputFn<T>>>,
     inner: Rc<RefCell<Box<dyn Bridge<T>>>>,
 }
 
@@ -35,33 +38,40 @@ where
     T: Bridged,
     F: Fn(T::Output) + 'static,
 {
-    let on_output = Rc::new(on_output);
+    let handle = use_memo(
+        |_| {
+            let on_output: Rc<RefCell<MaybeOutputFn<T>>> = Rc::default();
 
-    let on_output_clone = on_output.clone();
-    let on_output_ref = use_mut_ref(move || on_output_clone);
+            let inner = {
+                let on_output = on_output.clone();
 
-    // Refresh the callback on every render.
+                Rc::new(RefCell::new(T::bridge({
+                    Rc::new(move |output| {
+                        if let Some(on_output) = on_output.borrow().clone() {
+                            on_output(output);
+                        }
+                    })
+                })))
+            };
+
+            UseBridgeHandle { on_output, inner }
+        },
+        (),
+    );
+
     {
-        let mut on_output_ref = on_output_ref.borrow_mut();
-        *on_output_ref = on_output;
+        let mut on_output_ref = handle.on_output.borrow_mut();
+        *on_output_ref = Some(Rc::new(on_output) as Rc<dyn Fn(T::Output)>);
     }
 
-    let bridge = use_mut_ref(move || {
-        T::bridge({
-            Rc::new(move |output| {
-                let on_output = on_output_ref.borrow().clone();
-                on_output(output);
-            })
-        })
-    });
-
-    UseBridgeHandle { inner: bridge }
+    (*handle).clone()
 }
 
 impl<T: Worker> Clone for UseBridgeHandle<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            on_output: self.on_output.clone(),
         }
     }
 }

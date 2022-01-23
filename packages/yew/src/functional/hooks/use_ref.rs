@@ -9,7 +9,9 @@ use crate::NodeRef;
 
 /// State handle for [`use_ref`].
 ///
-/// Compare to [RefCell], from the standard library, this handle is render-time safe.
+/// Compared to [RefCell] from the standard library, this handle is render-time safe.
+///
+/// It prevents mutable access to the underlying value when any component is rendering.
 pub struct UseRefHandle<T>
 where
     T: 'static,
@@ -37,11 +39,14 @@ where
     }
 }
 
+// This handle uses a closure-based pattern so references can be released before a render starts / finishes.
 impl<T> UseRefHandle<T>
 where
     T: 'static,
 {
     /// Acquires a reference to the value held in the handle.
+    ///
+    /// This method is similar to the [with](std::thread::LocalKey::with) method in [std::thread::LocalKey].
     ///
     /// # Panics
     ///
@@ -55,13 +60,20 @@ where
     /// Acquires a reference to the value held in the handle.
     ///
     /// Returns Err(std::cell::BorrowError) if it fails to borrow the underlying value.
+    ///
+    /// This method is similar to the [try_with](std::thread::LocalKey::try_with) method in [std::thread::LocalKey].
     pub fn try_with<O>(&self, f: impl FnOnce(&T) -> O) -> std::result::Result<O, BorrowError> {
         let val = self.inner.try_borrow()?;
 
         Ok(f(&*val))
     }
 
-    /// Acquires a mutable reference to the value in this.
+    /// Acquires a mutable reference to the value in the handle.
+    ///
+    /// # Note
+    ///
+    /// A mutable reference can only be obtained when no component is rendering.
+    /// (in a `use_effect` hook or an event listener.)
     ///
     /// # Panics
     ///
@@ -78,7 +90,12 @@ where
         f(&mut *val)
     }
 
-    /// Acquires a mutable reference to the value in this.
+    /// Acquires a mutable reference to the value in the handle.
+    ///
+    /// # Note
+    ///
+    /// A mutable reference can only be obtained when no component is rendering.
+    /// (in a `use_effect` hook or an event listener.)
     ///
     /// # Panics
     ///
@@ -101,8 +118,11 @@ where
 /// This hook is used for obtaining a mutable reference to a stateful value.
 /// Its state persists across renders.
 ///
+/// # Note
+///
 /// It is important to note that you do not get notified of state changes.
-/// If you need the component to be re-rendered on state change, consider using [`use_state`](super::use_state()).
+/// If you need the component to be re-rendered on state change, you may trigger a render with
+/// [`use_state`](super::use_state()).
 ///
 /// # Example
 /// ```rust
@@ -115,17 +135,19 @@ where
 /// #[function_component(UseRef)]
 /// fn ref_hook() -> Html {
 ///     let message = use_state(|| "".to_string());
-///     let message_count = use_mut_ref(|| 0);
+///     let message_count = use_ref(|| 0);
 ///
 ///     let onclick = Callback::from(move |e| {
 ///         let window = gloo_utils::window();
 ///
-///         if *message_count.borrow_mut() > 3 {
-///             window.alert_with_message("Message limit reached");
-///         } else {
-///             *message_count.borrow_mut() += 1;
-///             window.alert_with_message("Message sent");
-///         }
+///         message_count.with_mut(|m| {
+///             if *m > 3 {
+///                 window.alert_with_message("Message limit reached");
+///             } else {
+///                 *m += 1;
+///                 window.alert_with_message("Message sent");
+///             }
+///         });
 ///     });
 ///
 ///     let onchange = {
@@ -144,19 +166,6 @@ where
 ///     }
 /// }
 /// ```
-#[hook]
-pub fn use_mut_ref<T: 'static>(initial_value: impl FnOnce() -> T) -> Rc<RefCell<T>> {
-    use_memo(|_| RefCell::new(initial_value()), ())
-}
-
-/// This hook is used for obtaining a mutable reference to a stateful value.
-/// Its state persists across renders.
-///
-/// # Note
-///
-/// It is important to note that you do not get notified of state changes.
-/// If you need the component to be re-rendered on state change, consider using [`use_state`](super::use_state()).
-///
 #[hook]
 pub fn use_ref<T: 'static>(initial_value: impl FnOnce() -> T) -> UseRefHandle<T> {
     let inner = use_memo(|_| RefCell::new(initial_value()), ());

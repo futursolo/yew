@@ -11,25 +11,30 @@ wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 fn use_ref_works() {
     #[function_component(UseRefComponent)]
     fn use_ref_comp() -> Html {
-        let ref_example = use_mut_ref(|| 0);
-        *ref_example.borrow_mut().deref_mut() += 1;
-        let counter = use_state(|| 0);
+        let ref_example = use_ref(|| 0);
+        let render_trigger = use_state(|| ());
 
-        use_effect_with_deps(
-            |counter| {
-                if **counter < 5 {
-                    counter.set(**counter + 1)
+        {
+            let ref_example = ref_example.clone();
+            use_effect(|| {
+                let should_render = ref_example.with_mut(|m| {
+                    *m += 1;
+
+                    ref_example < 5
+                });
+
+                if should_render {
+                    render_trigger.set(());
                 }
 
                 || {}
-            },
-            counter,
-        );
+            });
+        }
 
         html! {
             <div>
                 {"The test output is: "}
-                <div id="result">{*ref_example.borrow_mut().deref_mut() > 4}</div>
+                <div id="result">{ref_example.with(|m| *m) > 4}</div>
                 {"\n"}
             </div>
         }
