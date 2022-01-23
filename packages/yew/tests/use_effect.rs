@@ -1,6 +1,7 @@
 mod common;
 
 use common::obtain_result;
+use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use wasm_bindgen_test::*;
@@ -139,9 +140,9 @@ fn use_effect_works_once() {
 fn use_effect_refires_on_dependency_change() {
     #[function_component(UseEffectComponent)]
     fn use_effect_comp() -> Html {
-        let number_ref = use_mut_ref(|| 0);
+        let number_ref = use_memo(|_| RefCell::new(0), ());
         let number_ref_c = number_ref.clone();
-        let number_ref2 = use_mut_ref(|| 0);
+        let number_ref2 = use_memo(|_| RefCell::new(0), ());
         let number_ref2_c = number_ref2.clone();
         let arg = *number_ref.borrow_mut().deref_mut();
         let counter = use_state(|| 0);
