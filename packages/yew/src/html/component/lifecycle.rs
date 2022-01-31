@@ -29,6 +29,7 @@ where
 pub(crate) trait Stateful {
     fn view(&self) -> RenderResult<VNode>;
     fn rendered(&mut self, first_render: bool);
+    fn painted(&mut self);
     fn destroy(&mut self);
 
     fn any_scope(&self) -> AnyScope;
@@ -50,6 +51,10 @@ where
 
     fn rendered(&mut self, first_render: bool) {
         self.component.rendered(&self.context, first_render)
+    }
+
+    fn painted(&mut self) {
+        self.component.painted(&self.context)
     }
 
     fn destroy(&mut self) {
@@ -385,6 +390,23 @@ impl Runnable for RenderedRunner {
 
             if state.suspension.is_none() && state.parent.is_some() {
                 state.inner.rendered(self.first_render);
+            }
+        }
+    }
+}
+
+pub(crate) struct PaintedRunner {
+    pub(crate) state: Shared<Option<ComponentState>>,
+}
+
+impl Runnable for PaintedRunner {
+    fn run(self: Box<Self>) {
+        if let Some(state) = self.state.borrow_mut().as_mut() {
+            #[cfg(debug_assertions)]
+            crate::virtual_dom::vcomp::log_event(state.vcomp_id, "painted");
+
+            if state.suspension.is_none() && state.parent.is_some() {
+                state.inner.painted();
             }
         }
     }

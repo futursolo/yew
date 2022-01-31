@@ -30,6 +30,8 @@ struct Scheduler {
     /// Stacks to ensure child calls are always before parent calls
     rendered_first: Vec<Box<dyn Runnable>>,
     rendered: RenderedScheduler,
+
+    painted: Vec<Box<dyn Runnable>>,
 }
 
 /// Execute closure with a mutable reference to the scheduler

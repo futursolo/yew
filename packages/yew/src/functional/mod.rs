@@ -225,6 +225,14 @@ where
         }
     }
 
+    fn painted(&mut self, _ctx: &Context<Self>) {
+        let hook_ctx = self.hook_ctx.borrow();
+
+        for effect in hook_ctx.effects.iter() {
+            effect.rendered();
+        }
+    }
+
     fn destroy(&mut self, _ctx: &Context<Self>) {
         let mut hook_ctx = self.hook_ctx.borrow_mut();
         // We clear the effects as these are also references to states.

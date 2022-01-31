@@ -66,6 +66,9 @@ pub trait BaseComponent: SealedBaseComponent + Sized + 'static {
     /// Notified after a layout is rendered.
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool);
 
+    /// Notified after a layout is rendered and the browser had a chance to paint.
+    fn painted(&mut self, ctx: &Context<Self>);
+
     /// Notified before a component is destroyed.
     fn destroy(&mut self, ctx: &Context<Self>);
 }
@@ -159,6 +162,8 @@ where
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         Component::rendered(self, ctx, first_render)
     }
+
+    fn painted(&mut self, _ctx: &Context<Self>) {}
 
     fn destroy(&mut self, ctx: &Context<Self>) {
         Component::destroy(self, ctx)
