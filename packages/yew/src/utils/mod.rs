@@ -64,3 +64,18 @@ pub fn print_node(n: &web_sys::Node) -> String {
         None => n.text_content().unwrap_or_default(),
     }
 }
+
+/// Returns `true` when Yew is currently running in a browser environment.
+pub fn is_browser() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        thread_local! {
+            static IS_BROWSER: bool = web_sys::window().and_then(|m| m.document()).is_some();
+        }
+
+        IS_BROWSER.with(|m| *m)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    false
+}
