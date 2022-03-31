@@ -1,14 +1,14 @@
 //! This module contains the implementation of a virtual element node [VTag].
 
 use super::{AttrValue, Attributes, Key, Listener, Listeners, VList, VNode};
-use crate::html::{IntoPropValue, NodeRef};
+use crate::html::IntoPropValue;
 use std::cmp::PartialEq;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::{borrow::Cow, ops::DerefMut};
-use web_sys::{HtmlInputElement as InputElement, HtmlTextAreaElement as TextAreaElement};
+use web_sys::{HtmlInputElement as InputElement, HtmlTextAreaElement as TextAreaElement, Node};
 
 /// SVG namespace string used for creating svg elements
 pub const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
@@ -111,14 +111,13 @@ pub(crate) enum VTagInner {
 /// A type for a virtual
 /// [Element](https://developer.mozilla.org/en-US/docs/Web/API/Element)
 /// representation.
-#[derive(Debug, Clone)]
 pub struct VTag {
     /// [VTag] fields that are specific to different [VTag] kinds.
     pub(crate) inner: VTagInner,
     /// List of attached listeners.
     pub(crate) listeners: Listeners,
     /// A node reference used for DOM access in Component lifecycle methods
-    pub node_ref: NodeRef,
+    pub set_node: Option<Rc<dyn Fn(Node)>>,
     /// List of attributes.
     pub attributes: Attributes,
     pub key: Option<Key>,
@@ -159,7 +158,7 @@ impl VTag {
     pub fn __new_input(
         value: Option<AttrValue>,
         checked: bool,
-        node_ref: NodeRef,
+        set_node: Option<Rc<dyn Fn(Node)>>,
         key: Option<Key>,
         // at bottom for more readable macro-expanded coded
         attributes: Attributes,
@@ -172,7 +171,7 @@ impl VTag {
                 // but we use own field to control real `checked` parameter
                 checked,
             )),
-            node_ref,
+            set_node,
             key,
             attributes,
             listeners,
@@ -191,7 +190,7 @@ impl VTag {
     #[allow(clippy::too_many_arguments)]
     pub fn __new_textarea(
         value: Option<AttrValue>,
-        node_ref: NodeRef,
+        set_node: Option<Rc<dyn Fn(Node)>>,
         key: Option<Key>,
         // at bottom for more readable macro-expanded coded
         attributes: Attributes,
@@ -201,7 +200,7 @@ impl VTag {
             VTagInner::Textarea {
                 value: Value::new(value),
             },
-            node_ref,
+            set_node,
             key,
             attributes,
             listeners,
@@ -218,7 +217,7 @@ impl VTag {
     #[allow(clippy::too_many_arguments)]
     pub fn __new_other(
         tag: Cow<'static, str>,
-        node_ref: NodeRef,
+        set_node: Option<Rc<dyn Fn(Node)>>,
         key: Option<Key>,
         // at bottom for more readable macro-expanded coded
         attributes: Attributes,
@@ -227,7 +226,7 @@ impl VTag {
     ) -> Self {
         VTag::new_base(
             VTagInner::Other { tag, children },
-            node_ref,
+            set_node,
             key,
             attributes,
             listeners,
@@ -239,7 +238,7 @@ impl VTag {
     #[allow(clippy::too_many_arguments)]
     fn new_base(
         inner: VTagInner,
-        node_ref: NodeRef,
+        set_node: Option<Rc<dyn Fn(Node)>>,
         key: Option<Key>,
         attributes: Attributes,
         listeners: Listeners,
@@ -248,7 +247,7 @@ impl VTag {
             inner,
             attributes,
             listeners,
-            node_ref,
+            set_node,
             key,
         }
     }
@@ -409,6 +408,24 @@ impl PartialEq for VTag {
                 (Other { children: ch_l, .. }, Other { children: ch_r, .. }) => ch_l == ch_r,
                 _ => true,
             }
+    }
+}
+
+impl std::fmt::Debug for VTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "VTag {{ .. }}")
+    }
+}
+
+impl Clone for VTag {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            listeners: self.listeners.clone(),
+            set_node: self.set_node.clone(),
+            attributes: self.attributes.clone(),
+            key: self.key.clone(),
+        }
     }
 }
 

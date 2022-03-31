@@ -8,7 +8,7 @@ use quote::{quote, quote_spanned, ToTokens};
 use syn::buffer::Cursor;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{Block, Expr, Ident, Lit, LitStr, Token};
+use syn::{parse_quote, Block, Expr, Ident, Lit, LitStr, Path, Token};
 
 pub struct HtmlElement {
     pub name: TagName,
@@ -110,16 +110,21 @@ impl ToTokens for HtmlElement {
 
         // attributes with special treatment
 
-        let node_ref = node_ref
-            .as_ref()
-            .map(|attr| {
-                let value = &attr.value;
-                quote_spanned! {value.span()=>
-                    ::yew::html::IntoPropValue::<::yew::html::NodeRef>
-                    ::into_prop_value(#value)
-                }
-            })
-            .unwrap_or(quote! { ::std::default::Default::default() });
+        let make_set_node_ref = |html_ref: Option<&Prop>, element_type: Path| {
+            html_ref
+                .map(|m| {
+                    let value = &m.value;
+                    quote! {
+                        Some(::std::rc::Rc::new(move |node: ::web_sys::Node| {
+                            #value.clone().set_node_unchecked::<#element_type>(node.clone());
+                        }) as ::std::rc::Rc<dyn Fn(::web_sys::Node)>)
+                    }
+                })
+                .unwrap_or_else(|| {
+                    quote! { None }
+                })
+        };
+
         let key = key
             .as_ref()
             .map(|attr| {
@@ -300,6 +305,8 @@ impl ToTokens for HtmlElement {
                 let name = name.to_ascii_lowercase_string();
                 let node = match &*name {
                     "input" => {
+                        let node_ref = make_set_node_ref(node_ref.as_ref(), parse_quote! { ::web_sys::HtmlInputElement });
+
                         quote! {
                             ::std::convert::Into::<::yew::virtual_dom::VNode>::into(
                                 ::yew::virtual_dom::VTag::__new_input(
@@ -314,6 +321,8 @@ impl ToTokens for HtmlElement {
                         }
                     }
                     "textarea" => {
+                        let node_ref = make_set_node_ref(node_ref.as_ref(), parse_quote! { ::web_sys::HtmlTextAreaElement });
+
                         quote! {
                             ::std::convert::Into::<::yew::virtual_dom::VNode>::into(
                                 ::yew::virtual_dom::VTag::__new_textarea(
@@ -327,6 +336,9 @@ impl ToTokens for HtmlElement {
                         }
                     }
                     _ => {
+                        // TODO: embed a complete set of html element type.
+                        let node_ref = make_set_node_ref(node_ref.as_ref(), parse_quote! { ::web_sys::Element });
+
                         quote! {
                             ::std::convert::Into::<::yew::virtual_dom::VNode>::into(
                                 ::yew::virtual_dom::VTag::__new_other(
@@ -364,6 +376,9 @@ impl ToTokens for HtmlElement {
                         __yew_vtag.__macro_push_attr("value", #v);
                     }}
                 });
+
+                // You lose typed element if you use dynamic tag.
+                let node_ref = make_set_node_ref(node_ref.as_ref(), parse_quote! { ::web_sys::Element });
 
                 // this way we get a nice error message (with the correct span) when the expression
                 // doesn't return a valid value

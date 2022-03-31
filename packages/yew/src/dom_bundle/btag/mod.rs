@@ -113,10 +113,11 @@ impl Reconcilable for VTag {
         let Self {
             listeners,
             attributes,
-            node_ref,
+            set_node,
             key,
             ..
         } = self;
+        let node_ref = NodeRef::default();
         insert_node(&el, parent, next_sibling.get().as_ref());
 
         let attributes = attributes.apply(root, &el);
@@ -137,6 +138,9 @@ impl Reconcilable for VTag {
                 BTagInner::Other { child_bundle, tag }
             }
         };
+
+        set_node.map(|m| m(el.clone().into()));
+
         node_ref.set(Some(el.clone().into()));
         (
             node_ref.clone(),
@@ -223,13 +227,7 @@ impl Reconcilable for VTag {
 
         tag.key = self.key;
 
-        if self.node_ref != tag.node_ref && tag.node_ref.get().as_ref() == Some(el) {
-            tag.node_ref.set(None);
-        }
-        if self.node_ref != tag.node_ref {
-            tag.node_ref = self.node_ref;
-            tag.node_ref.set(Some(el.clone().into()));
-        }
+        self.set_node.map(|m| m(el.clone().into()));
 
         tag.node_ref.clone()
     }
@@ -308,7 +306,7 @@ mod feat_hydration {
                 inner,
                 listeners,
                 attributes,
-                node_ref,
+                set_node,
                 key,
             } = self;
 
@@ -361,6 +359,10 @@ mod feat_hydration {
                     BTagInner::Other { child_bundle, tag }
                 }
             };
+
+            let node_ref = NodeRef::default();
+
+            set_node.map(|m| m(el.clone().into()));
 
             node_ref.set(Some((*el).clone()));
 

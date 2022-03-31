@@ -17,7 +17,7 @@ use crate::sealed::Sealed;
 use crate::virtual_dom::{VNode, VPortal};
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Element, Node};
 
 /// A type which expected as a result of `view` function implementation.
@@ -45,6 +45,50 @@ impl IntoHtmlResult for Html {
     #[inline(always)]
     fn into_html_result(self) -> HtmlResult {
         Ok(self)
+    }
+}
+
+/// A HtmlRef.
+#[derive(Debug, Clone)]
+pub struct HtmlRef<T> {
+    inner: Rc<RefCell<Option<T>>>,
+}
+
+impl<T> HtmlRef<T>
+where
+    T: Clone + 'static,
+{
+    /// Creates a Ref.
+    pub fn new() -> Self {
+        Self {
+            inner: Rc::default(),
+        }
+    }
+
+    /// Get a Ref.
+    pub fn get(&self) -> Option<T> {
+        (*self.inner.borrow()).clone()
+    }
+
+    /// Set a Ref.
+    pub fn set<F: Into<T>>(&self, val: F) {
+        self.inner.borrow_mut().replace(val.into());
+    }
+}
+
+impl<T> HtmlRef<T>
+where
+    T: Clone + 'static + JsCast,
+{
+    /// Set by node.
+    pub fn set_node_unchecked<I>(&self, val: Node)
+    where
+        I: JsCast,
+        T: From<I>,
+    {
+        let val = val.unchecked_into::<I>();
+
+        (*self.inner.borrow_mut()) = Some(T::from(val));
     }
 }
 
