@@ -1,20 +1,13 @@
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::path::PathBuf;
+use std::time::Instant;
 
-use axum::body::{Body, StreamBody};
-use axum::error_handling::HandleError;
-use axum::extract::Query;
-use axum::handler::Handler;
-use axum::http::{Request, StatusCode};
-use axum::response::IntoResponse;
-use axum::routing::get;
-use axum::{Extension, Router};
 use clap::Parser;
 use function_router::{ServerApp, ServerAppProps};
-use futures::stream::{self, StreamExt};
-use tower::ServiceExt;
-use tower_http::services::ServeDir;
+use futures::stream::{FuturesUnordered, StreamExt};
+
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 /// A basic example
 #[derive(Parser, Debug)]
@@ -24,76 +17,31 @@ struct Opt {
     dir: PathBuf,
 }
 
-async fn render(
-    Extension((index_html_before, index_html_after)): Extension<(String, String)>,
-    url: Request<Body>,
-    Query(queries): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
-    let url = url.uri().to_string();
+async fn render() {
+    let url = "/".to_string();
+    let queries = HashMap::new();
 
     let server_app_props = ServerAppProps { url, queries };
     let renderer = yew::ServerRenderer::<ServerApp>::with_props(server_app_props);
 
-    StreamBody::new(
-        stream::once(async move { index_html_before })
-            .chain(renderer.render_stream().await)
-            .chain(stream::once(async move { index_html_after }))
-            .map(Result::<_, Infallible>::Ok),
-    )
+    renderer.render().await;
 }
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let opts = Opt::parse();
+    let _opts = Opt::parse();
 
-    let index_html_s = tokio::fs::read_to_string(opts.dir.join("index.html"))
-        .await
-        .expect("failed to read index.html");
+    let start_time = Instant::now();
 
-    let (index_html_before, index_html_after) = index_html_s.split_once("<body>").unwrap();
-    let mut index_html_before = index_html_before.to_owned();
-    index_html_before.push_str("<body>");
+    let f: FuturesUnordered<_> = (0_usize..100_000_usize)
+        .map(|_: usize| async {
+            render().await;
+        })
+        .collect();
 
-    let index_html_after = index_html_after.to_owned();
+    let _: Vec<_> = f.collect().await;
 
-    let handle_error = |e| async move {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("error occurred: {}", e),
-        )
-    };
-
-    let app = Router::new()
-        .route("/api/test", get(|| async move { "Hello World" }))
-        // needed because https://github.com/tower-rs/tower-http/issues/262
-        .route(
-            "/",
-            get(render.layer(Extension((
-                index_html_before.clone(),
-                index_html_after.clone(),
-            )))),
-        )
-        .fallback(HandleError::new(
-            ServeDir::new(opts.dir)
-                .append_index_html_on_directories(false)
-                .fallback(
-                    render
-                        .layer(Extension((
-                            index_html_before.clone(),
-                            index_html_after.clone(),
-                        )))
-                        .into_service()
-                        .map_err(|err| -> std::io::Error { match err {} }),
-                ),
-            handle_error,
-        ));
-
-    println!("You can view the website at: http://localhost:8080/");
-
-    axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    println!("{}ms", start_time.elapsed().as_millis());
 }
