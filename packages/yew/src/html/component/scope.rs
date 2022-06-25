@@ -260,14 +260,13 @@ impl<COMP: BaseComponent> Scope<COMP> {
 
 #[cfg(feature = "ssr")]
 mod feat_ssr {
-    use futures::channel::oneshot;
-
     use super::*;
     use crate::html::component::lifecycle::{
         ComponentRenderState, CreateRunner, DestroyRunner, RenderRunner,
     };
+    use crate::io::BufWriter;
+    use crate::platform::sync::oneshot;
     use crate::scheduler;
-    use crate::server_renderer::BufWriter;
     use crate::virtual_dom::Collectable;
 
     impl<COMP: BaseComponent> Scope<COMP> {
@@ -277,6 +276,10 @@ mod feat_ssr {
             props: Rc<COMP::Properties>,
             hydratable: bool,
         ) {
+            // Rust's Future implementation is stack-allocated and incurs zero runtime-cost.
+            //
+            // If the content of this channel is ready before it is awaited, it is
+            // similar to taking the value from a mutex lock.
             let (tx, rx) = oneshot::channel();
             let state = ComponentRenderState::Ssr { sender: Some(tx) };
 
@@ -514,17 +517,19 @@ mod feat_csr {
             root: BSubtree,
             parent: Element,
             next_sibling: NodeRef,
-            node_ref: NodeRef,
+            internal_ref: NodeRef,
             props: Rc<COMP::Properties>,
         ) {
             let bundle = Bundle::new();
-            node_ref.link(next_sibling.clone());
+            internal_ref.link(next_sibling.clone());
+            let stable_next_sibling = NodeRef::default();
+            stable_next_sibling.link(next_sibling);
             let state = ComponentRenderState::Render {
                 bundle,
                 root,
-                node_ref,
+                internal_ref,
                 parent,
-                next_sibling,
+                next_sibling: stable_next_sibling,
             };
 
             scheduler::push_component_create(
@@ -634,7 +639,7 @@ mod feat_hydration {
             root: BSubtree,
             parent: Element,
             fragment: &mut Fragment,
-            node_ref: NodeRef,
+            internal_ref: NodeRef,
             props: Rc<COMP::Properties>,
         ) {
             // This is very helpful to see which component is failing during hydration
@@ -649,8 +654,14 @@ mod feat_hydration {
             let collectable = Collectable::for_component::<COMP>();
 
             let mut fragment = Fragment::collect_between(fragment, &collectable, &parent);
-            node_ref.set(fragment.front().cloned());
-            let next_sibling = NodeRef::default();
+            match fragment.front().cloned() {
+                front @ Some(_) => internal_ref.set(front),
+                None =>
+                {
+                    #[cfg(debug_assertions)]
+                    internal_ref.link(NodeRef::new_debug_trapped())
+                }
+            }
 
             let prepared_state = match fragment
                 .back()
@@ -666,10 +677,10 @@ mod feat_hydration {
             };
 
             let state = ComponentRenderState::Hydration {
-                root,
                 parent,
-                node_ref,
-                next_sibling,
+                root,
+                internal_ref,
+                next_sibling: NodeRef::new_debug_trapped(),
                 fragment,
             };
 

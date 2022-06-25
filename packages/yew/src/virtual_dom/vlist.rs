@@ -160,7 +160,7 @@ mod feat_ssr {
 
     use super::*;
     use crate::html::AnyScope;
-    use crate::server_renderer::BufWriter;
+    use crate::io::{self, BufWriter};
 
     impl VList {
         pub(crate) async fn render_into_stream(
@@ -169,37 +169,33 @@ mod feat_ssr {
             parent_scope: &AnyScope,
             hydratable: bool,
         ) {
-            if self.children.len() < 2 {
-                match self.children.first() {
-                    Some(m) => {
-                        m.render_into_stream(w, parent_scope, hydratable).await;
-                    }
-
-                    None => {}
+            match &self.children[..] {
+                [] => {}
+                [child] => {
+                    child.render_into_stream(w, parent_scope, hydratable).await;
                 }
+                _ => {
+                    let buf_capacity = w.capacity();
 
-                return;
-            }
+                    // Concurrently render all children.
+                    let mut children: FuturesOrdered<_> = self
+                        .children
+                        .iter()
+                        .map(|m| async move {
+                            let (mut w, r) = io::buffer(buf_capacity);
 
-            let buf_capacity = w.capacity();
+                            m.render_into_stream(&mut w, parent_scope, hydratable).await;
+                            drop(w);
 
-            // Concurrently render all children.
-            let mut children: FuturesOrdered<_> = self
-                .children
-                .iter()
-                .map(|m| async move {
-                    let (mut w, rx) = BufWriter::with_capacity(buf_capacity);
+                            r
+                        })
+                        .collect();
 
-                    m.render_into_stream(&mut w, parent_scope, hydratable).await;
-                    drop(w);
-
-                    rx
-                })
-                .collect();
-
-            while let Some(mut rx) = children.next().await {
-                while let Some(next_chunk) = rx.next().await {
-                    w.write(next_chunk.into());
+                    while let Some(mut r) = children.next().await {
+                        while let Some(next_chunk) = r.next().await {
+                            w.write(next_chunk.into());
+                        }
+                    }
                 }
             }
         }
@@ -207,6 +203,7 @@ mod feat_ssr {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "ssr")]
 #[cfg(test)]
 mod ssr_tests {
     use tokio::test;

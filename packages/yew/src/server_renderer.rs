@@ -1,92 +1,8 @@
-use std::borrow::Cow;
-
-use futures::channel::mpsc::{self, UnboundedSender};
 use futures::stream::{Stream, StreamExt};
 
 use crate::html::{BaseComponent, Scope};
+use crate::io::{self, DEFAULT_BUF_SIZE};
 use crate::platform::{run_pinned, spawn_local};
-
-// Same as std::io::BufWriter and futures::io::BufWriter.
-const DEFAULT_BUF_SIZE: usize = 8 * 1024;
-
-/// A [`futures::io::BufWriter`], but operates over string and yields into a Stream.
-pub(crate) struct BufWriter {
-    buf: String,
-    tx: UnboundedSender<String>,
-    capacity: usize,
-}
-
-impl BufWriter {
-    pub fn with_capacity(capacity: usize) -> (Self, impl Stream<Item = String>) {
-        let (tx, rx) = mpsc::unbounded::<String>();
-
-        let this = Self {
-            buf: String::with_capacity(capacity),
-            tx,
-            capacity,
-        };
-
-        (this, rx)
-    }
-
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.capacity
-    }
-
-    /// Writes a string into the buffer, optionally drains the buffer.
-    pub fn write(&mut self, s: Cow<'_, str>) {
-        if s.len() > self.capacity {
-            // if the next part is more than buffer size, we drain the buffer and the next
-            // part.
-
-            match s {
-                // When the next part is borrowed, we push it onto the current buffer and send the
-                // buffer.
-                Cow::Borrowed(s) => {
-                    let mut buf = String::with_capacity(self.capacity);
-                    std::mem::swap(&mut buf, &mut self.buf);
-
-                    buf.push_str(s);
-
-                    let _ = self.tx.unbounded_send(buf);
-                }
-
-                // When the next part is owned, we send both the buffer and the next part.
-                Cow::Owned(s) => {
-                    if !self.buf.is_empty() {
-                        let mut buf = String::with_capacity(self.capacity);
-                        std::mem::swap(&mut buf, &mut self.buf);
-                        let _ = self.tx.unbounded_send(buf);
-                    }
-
-                    let _ = self.tx.unbounded_send(s);
-                }
-            }
-        } else if self.buf.capacity() >= s.len() {
-            // There is enough capacity, we push it on to the buffer.
-            self.buf.push_str(&s);
-        } else {
-            // The next part is not going to fit into the buffer, we send
-            // the current buffer and make a new buffer.
-            let mut buf = String::with_capacity(self.capacity);
-            buf.push_str(&s);
-
-            std::mem::swap(&mut buf, &mut self.buf);
-            let _ = self.tx.unbounded_send(buf);
-        }
-    }
-}
-
-impl Drop for BufWriter {
-    fn drop(&mut self) {
-        if !self.buf.is_empty() {
-            let mut buf = "".to_string();
-            std::mem::swap(&mut buf, &mut self.buf);
-            let _ = self.tx.unbounded_send(buf);
-        }
-    }
-}
 
 /// A Yew Server-side Renderer that renders on the current thread.
 #[cfg_attr(documenting, doc(cfg(feature = "ssr")))]
@@ -166,7 +82,7 @@ where
 
     /// Renders Yew Application to a String.
     pub async fn render_to_string(self, w: &mut String) {
-        let mut s = self.render_stream().await;
+        let mut s = self.render_stream();
 
         while let Some(m) = s.next().await {
             w.push_str(&m);
@@ -174,10 +90,8 @@ where
     }
 
     /// Renders Yew Applications into a string Stream
-    // Whilst not required to be async here, this function is async to keep the same function
-    // signature as the ServerRenderer.
-    pub async fn render_stream(self) -> impl Stream<Item = String> {
-        let (mut w, rx) = BufWriter::with_capacity(self.capacity);
+    pub fn render_stream(self) -> impl Stream<Item = String> {
+        let (mut w, r) = io::buffer(self.capacity);
 
         let scope = Scope::<COMP>::new(None);
         spawn_local(async move {
@@ -186,7 +100,7 @@ where
                 .await;
         });
 
-        rx
+        r
     }
 }
 
@@ -281,7 +195,12 @@ where
     }
 
     /// Renders Yew Applications into a string Stream.
+    ///
+    /// # Note
+    ///
+    /// Unlike [`LocalServerRenderer::render_stream`], this method is `async fn`.
     pub async fn render_stream(self) -> impl Stream<Item = String> {
+        // We use run_pinned to switch to our runtime.
         run_pinned(move || async move {
             let Self {
                 props,
@@ -293,7 +212,6 @@ where
                 .hydratable(hydratable)
                 .capacity(capacity)
                 .render_stream()
-                .await
         })
         .await
     }

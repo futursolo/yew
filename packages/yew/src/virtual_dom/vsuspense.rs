@@ -28,7 +28,7 @@ impl VSuspense {
 mod feat_ssr {
     use super::*;
     use crate::html::AnyScope;
-    use crate::server_renderer::BufWriter;
+    use crate::io::BufWriter;
     use crate::virtual_dom::Collectable;
 
     impl VSuspense {
@@ -57,6 +57,7 @@ mod feat_ssr {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "ssr")]
 #[cfg(test)]
 mod ssr_tests {
     use std::rc::Rc;

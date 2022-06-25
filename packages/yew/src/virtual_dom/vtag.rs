@@ -430,7 +430,7 @@ impl PartialEq for VTag {
 mod feat_ssr {
     use super::*;
     use crate::html::AnyScope;
-    use crate::server_renderer::BufWriter;
+    use crate::io::BufWriter;
     use crate::virtual_dom::VText;
 
     // Elements that cannot have any child elements.
@@ -511,6 +511,7 @@ mod feat_ssr {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "ssr")]
 #[cfg(test)]
 mod ssr_tests {
     use tokio::test;

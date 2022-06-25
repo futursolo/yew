@@ -37,7 +37,7 @@ mod feat_ssr {
 
     use super::*;
     use crate::html::AnyScope;
-    use crate::server_renderer::BufWriter;
+    use crate::io::BufWriter;
 
     impl VText {
         pub(crate) async fn render_into_stream(
@@ -53,6 +53,7 @@ mod feat_ssr {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "ssr")]
 #[cfg(test)]
 mod ssr_tests {
     use tokio::test;

@@ -1,6 +1,10 @@
 #![allow(clippy::needless_doctest_main)]
 #![doc(html_logo_url = "https://yew.rs/img/logo.png")]
 #![cfg_attr(documenting, feature(doc_cfg))]
+#![cfg_attr(
+    feature = "nightly",
+    feature(fn_traits, async_closure, unboxed_closures)
+)]
 
 //! # Yew Framework - API Documentation
 //!
@@ -288,6 +292,9 @@ pub mod utils;
 pub mod virtual_dom;
 #[cfg(feature = "ssr")]
 pub use server_renderer::*;
+
+#[cfg(feature = "ssr")]
+mod io;
 
 #[cfg(feature = "csr")]
 mod app_handle;
