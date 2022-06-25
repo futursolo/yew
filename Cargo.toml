@@ -45,3 +45,8 @@ members = [
   "tools/process-benchmark-results",
   "tools/website-test",
 ]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
