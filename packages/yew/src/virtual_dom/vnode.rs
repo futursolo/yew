@@ -1,3 +1,5 @@
+//! This module contains the implementation of abstract virtual node.
+
 use std::cmp::PartialEq;
 use std::fmt;
 use std::iter::FromIterator;
@@ -151,7 +153,7 @@ mod feat_ssr {
 
     use super::*;
     use crate::html::AnyScope;
-    use crate::io::BufWriter;
+    use crate::platform::io::BufWriter;
 
     impl VNode {
         pub(crate) fn render_into_stream<'a>(

@@ -1,10 +1,13 @@
-//! This module contains types for I/O funtionality.
+//! This module contains types for I/O functionality.
+
+// This module remains private until impl trait type alias becomes available so
+// `BufReader` can be produced with an existential type.
 
 use std::borrow::Cow;
 
 use futures::stream::Stream;
 
-use crate::platform::sync::mpsc::{self, UnboundedReceiverStream, UnboundedSender};
+use crate::platform::sync::mpsc::{self, UnboundedSender};
 
 // Same as std::io::BufWriter and futures::io::BufWriter.
 pub(crate) const DEFAULT_BUF_SIZE: usize = 8 * 1024;
@@ -18,7 +21,7 @@ pub(crate) struct BufWriter {
 
 /// Creates a Buffer pair.
 pub(crate) fn buffer(capacity: usize) -> (BufWriter, impl Stream<Item = String>) {
-    let (tx, rx) = mpsc::unbounded_channel::<String>();
+    let (tx, rx) = mpsc::unbounded::<String>();
 
     let tx = BufWriter {
         buf: String::with_capacity(capacity),
@@ -26,7 +29,7 @@ pub(crate) fn buffer(capacity: usize) -> (BufWriter, impl Stream<Item = String>)
         capacity,
     };
 
-    (tx, UnboundedReceiverStream::new(rx))
+    (tx, rx)
 }
 
 // Implementation Notes:
