@@ -1,13 +1,14 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use clap::Parser;
-use function_router::{ServerApp, ServerAppProps};
-use futures::stream::{FuturesUnordered, StreamExt};
+use tokio::sync::mpsc;
+// use function_router::{ServerApp, ServerAppProps};
+use yew::prelude::*;
 
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 /// A basic example
 #[derive(Parser, Debug)]
@@ -17,14 +18,16 @@ struct Opt {
     dir: PathBuf,
 }
 
+#[function_component]
+fn HelloWorld() -> Html {
+    html! {"Hello, World!"}
+}
+
 async fn render() {
-    let url = "/".to_string();
-    let queries = HashMap::new();
-
-    let server_app_props = ServerAppProps { url, queries };
-    let renderer = yew::ServerRenderer::<ServerApp>::with_props(server_app_props);
-
-    renderer.render().await;
+    yew::ServerRenderer::<HelloWorld>::default()
+        .capacity(1024)
+        .render()
+        .await;
 }
 
 #[tokio::main]
@@ -33,15 +36,22 @@ async fn main() {
 
     let _opts = Opt::parse();
 
+    let (tx, mut rx) = mpsc::unbounded_channel::<()>();
+
     let start_time = Instant::now();
 
-    let f: FuturesUnordered<_> = (0_usize..100_000_usize)
-        .map(|_: usize| async {
-            render().await;
-        })
-        .collect();
+    let read = tokio::task::spawn(async move { while let Some(_m) = rx.recv().await {} });
 
-    let _: Vec<_> = f.collect().await;
+    for _ in 0..1_000_000 {
+        let tx = tx.clone();
+        tokio::task::spawn(async move {
+            render().await;
+            let _ = tx;
+        });
+    }
+    drop(tx);
+
+    read.await.expect("failed to read.");
 
     println!("{}ms", start_time.elapsed().as_millis());
 }
