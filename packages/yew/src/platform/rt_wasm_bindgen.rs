@@ -1,7 +1,5 @@
-use std::future::Future;
-
 #[cfg(feature = "ssr")]
-pub(crate) mod sync;
+use std::future::Future;
 
 pub(super) use wasm_bindgen_futures::spawn_local;
 
