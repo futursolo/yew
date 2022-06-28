@@ -20,15 +20,13 @@ fn HelloWorld() -> Html {
 // }
 
 async fn render() {
-    let props = ServerAppProps {
-        url: "/".to_string(),
+    yew::ServerRenderer::<ServerApp>::with_props(|| ServerAppProps {
+        url: "/".into(),
         queries: HashMap::new(),
-    };
-
-    yew::ServerRenderer::<ServerApp>::with_props(props)
-        .capacity(8192)
-        .render()
-        .await;
+    })
+    .capacity(4096)
+    .render()
+    .await;
 }
 
 #[tokio::main]
