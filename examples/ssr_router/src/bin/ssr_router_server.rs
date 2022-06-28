@@ -1,7 +1,7 @@
-// use std::collections::HashMap;
+use std::collections::HashMap;
 use std::time::Instant;
 
-// use function_router::{ServerApp, ServerAppProps};
+use function_router::{ServerApp, ServerAppProps};
 use yew::prelude::*;
 
 #[global_allocator]
@@ -12,9 +12,21 @@ fn HelloWorld() -> Html {
     html! {"Hello, World!"}
 }
 
+// async fn render() {
+//     yew::ServerRenderer::<HelloWorld>::default()
+//         .capacity(1024)
+//         .render()
+//         .await;
+// }
+
 async fn render() {
-    yew::ServerRenderer::<HelloWorld>::default()
-        .capacity(1024)
+    let props = ServerAppProps {
+        url: "/".to_string(),
+        queries: HashMap::new(),
+    };
+
+    yew::ServerRenderer::<ServerApp>::with_props(props)
+        .capacity(8192)
         .render()
         .await;
 }
@@ -27,9 +39,9 @@ async fn main() {
 
     let start_time = Instant::now();
 
-    for _ in 0..100 {
+    for _ in 0..1_000 {
         tasks.push(tokio::task::spawn(async move {
-            for _ in 0..10_000 {
+            for _ in 0..1_000 {
                 render().await;
             }
         }));
