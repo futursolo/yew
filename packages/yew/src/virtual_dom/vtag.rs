@@ -470,8 +470,24 @@ mod feat_ssr {
                 }
             }
 
-            for (k, v) in self.attributes.iter() {
-                write_attr(w, k, Some(v));
+            match self.attributes {
+                Attributes::Static(arr) => {
+                    for [k, v] in arr.iter() {
+                        write_attr(w, k, Some(v));
+                    }
+                }
+                Attributes::Dynamic { keys, ref values } => {
+                    for (k, v) in keys.iter().zip(values.iter()) {
+                        if let Some(v) = v.as_deref() {
+                            write_attr(w, k, Some(v));
+                        }
+                    }
+                }
+                Attributes::IndexMap(ref m) => {
+                    for (k, v) in m.iter() {
+                        write_attr(w, k, Some(v));
+                    }
+                }
             }
 
             w.write(">".into());
