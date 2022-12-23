@@ -13,10 +13,10 @@ use crate::dom_bundle::BundleLocation;
 #[cfg(feature = "hydration")]
 use crate::dom_bundle::Fragment;
 use crate::html::BaseComponent;
+#[cfg(feature = "csr")]
+use crate::html::Scoped;
 #[cfg(any(feature = "ssr", feature = "csr"))]
 use crate::html::{AnyScope, Scope};
-#[cfg(feature = "csr")]
-use crate::html::{NodeRef, Scoped};
 #[cfg(feature = "ssr")]
 use crate::platform::fmt::BufWriter;
 
@@ -58,7 +58,7 @@ pub(crate) trait Mountable {
         -> Box<dyn Scoped>;
 
     #[cfg(feature = "csr")]
-    fn reuse(self: Box<Self>, scope: &dyn Scoped, next_sibling: NodeRef);
+    fn reuse(self: Box<Self>, scope: &dyn Scoped);
 
     #[cfg(feature = "ssr")]
     fn render_into_stream<'a>(
@@ -108,9 +108,9 @@ impl<COMP: BaseComponent> Mountable for PropsWrapper<COMP> {
     }
 
     #[cfg(feature = "csr")]
-    fn reuse(self: Box<Self>, scope: &dyn Scoped, next_sibling: NodeRef) {
+    fn reuse(self: Box<Self>, scope: &dyn Scoped) {
         let scope: Scope<COMP> = scope.to_any().downcast::<COMP>();
-        scope.reuse(self.props, next_sibling);
+        scope.reuse(self.props);
     }
 
     #[cfg(feature = "ssr")]

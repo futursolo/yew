@@ -519,7 +519,6 @@ mod feat_csr {
     pub(crate) struct PropsUpdateRunner {
         pub state: Shared<Option<ComponentState>>,
         pub props: Option<Rc<dyn Any>>,
-        pub next_sibling: Option<NodeRef>,
     }
 
     impl ComponentState {
@@ -528,30 +527,7 @@ mod feat_csr {
             skip(self),
             fields(component.id = self.comp_id)
         )]
-        fn changed(&mut self, props: Option<Rc<dyn Any>>, next_sibling: Option<NodeRef>) -> bool {
-            if let Some(next_sibling) = next_sibling {
-                // When components are updated, their siblings were likely also updated
-                // We also need to shift the bundle so next sibling will be synced to child
-                // components.
-                match self.render_state {
-                    #[cfg(feature = "csr")]
-                    ComponentRenderState::Render { ref bundle } => {
-                        bundle.location.next_sibling.link(next_sibling);
-                    }
-
-                    #[cfg(feature = "hydration")]
-                    ComponentRenderState::Hydration { ref location, .. } => {
-                        location.next_sibling.link(next_sibling);
-                    }
-
-                    #[cfg(feature = "ssr")]
-                    ComponentRenderState::Ssr { .. } => {
-                        #[cfg(debug_assertions)]
-                        panic!("properties do not change during SSR");
-                    }
-                }
-            }
-
+        fn changed(&mut self, props: Option<Rc<dyn Any>>) -> bool {
             let should_render = |props: Option<Rc<dyn Any>>, state: &mut ComponentState| -> bool {
                 props.map(|m| state.inner.props_changed(m)).unwrap_or(false)
             };
@@ -602,13 +578,12 @@ mod feat_csr {
     impl Runnable for PropsUpdateRunner {
         fn run(self: Box<Self>) {
             let Self {
-                next_sibling,
                 props,
                 state: shared_state,
             } = *self;
 
             if let Some(state) = shared_state.borrow_mut().as_mut() {
-                let schedule_render = state.changed(props, next_sibling);
+                let schedule_render = state.changed(props);
 
                 if schedule_render {
                     scheduler::push_component_render(
@@ -659,7 +634,6 @@ mod feat_csr {
                     scheduler::push_component_props_update(Box::new(PropsUpdateRunner {
                         state: self.state.clone(),
                         props: None,
-                        next_sibling: None,
                     }));
                 }
             }

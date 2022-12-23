@@ -538,14 +538,9 @@ mod feat_csr {
         }
     }
 
-    fn schedule_props_update(
-        state: Shared<Option<ComponentState>>,
-        props: Rc<dyn Any>,
-        next_sibling: NodeRef,
-    ) {
+    fn schedule_props_update(state: Shared<Option<ComponentState>>, props: Rc<dyn Any>) {
         scheduler::push_component_props_update(Box::new(PropsUpdateRunner {
             state,
-            next_sibling: Some(next_sibling),
             props: Some(props),
         }));
         // Not guaranteed to already have the scheduler started
@@ -578,8 +573,8 @@ mod feat_csr {
             scheduler::start();
         }
 
-        pub(crate) fn reuse(&self, props: Rc<COMP::Properties>, next_sibling: NodeRef) {
-            schedule_props_update(self.state.clone(), props, next_sibling)
+        pub(crate) fn reuse(&self, props: Rc<COMP::Properties>) {
+            schedule_props_update(self.state.clone(), props)
         }
     }
 

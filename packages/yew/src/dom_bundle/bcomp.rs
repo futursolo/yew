@@ -18,6 +18,7 @@ pub(super) struct BComp {
     // A internal NodeRef passed around to track this components position. This
     // is "stable", i.e. does not change when reconciled.
     internal_ref: NodeRef,
+    stable_next_sibling: NodeRef,
     key: Option<Key>,
 }
 
@@ -43,7 +44,6 @@ impl ReconcileTarget for BComp {
 
     fn shift(&self, next_parent: &Element, next_sibling: NodeRef) -> NodeRef {
         self.scope.shift_node(next_parent.clone(), next_sibling);
-
         self.internal_ref.clone()
     }
 }
@@ -67,6 +67,7 @@ impl Reconcilable for VComp {
 
         let location = BundleLocation::new_child(root, parent.clone(), next_sibling);
         let internal_ref = location.internal_ref.clone();
+        let stable_next_sibling = location.next_sibling.clone();
 
         let scope = mountable.mount(parent_scope, location);
 
@@ -75,6 +76,7 @@ impl Reconcilable for VComp {
             BComp {
                 type_id,
                 internal_ref,
+                stable_next_sibling,
                 key,
                 scope,
             },
@@ -110,8 +112,9 @@ impl Reconcilable for VComp {
     ) -> NodeRef {
         let VComp { mountable, key, .. } = self;
 
+        bcomp.stable_next_sibling.link(next_sibling);
         bcomp.key = key;
-        mountable.reuse(bcomp.scope.borrow(), next_sibling);
+        mountable.reuse(bcomp.scope.borrow());
         bcomp.internal_ref.clone()
     }
 }
@@ -138,6 +141,7 @@ mod feat_hydration {
             let location =
                 BundleLocation::new_child(root, parent.clone(), NodeRef::new_debug_trapped());
             let internal_ref = location.internal_ref.clone();
+            let stable_next_sibling = location.next_sibling.clone();
 
             let scoped = mountable.hydrate(location, parent_scope, fragment);
 
@@ -146,6 +150,7 @@ mod feat_hydration {
                 BComp {
                     type_id,
                     scope: scoped,
+                    stable_next_sibling,
                     internal_ref,
                     key,
                 },

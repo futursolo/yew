@@ -6,7 +6,7 @@ use std::rc::Rc;
 use web_sys::Element;
 
 use crate::dom_bundle::BundleLocation;
-use crate::html::{BaseComponent, NodeRef, Scope, Scoped};
+use crate::html::{BaseComponent, Scope, Scoped};
 
 /// An instance of an application.
 #[cfg(feature = "csr")]
@@ -52,7 +52,7 @@ where
         skip_all,
     )]
     pub fn update(&mut self, new_props: COMP::Properties) {
-        self.scope.reuse(Rc::new(new_props), NodeRef::default())
+        self.scope.reuse(Rc::new(new_props))
     }
 
     /// Schedule the app for destruction
@@ -107,8 +107,6 @@ mod feat_hydration {
 
             app.scope
                 .hydrate_in_place(location, &mut fragment, Rc::clone(&props));
-            #[cfg(debug_assertions)] // Fix trapped next_sibling at the root
-            app.scope.reuse(props, NodeRef::default());
 
             // We remove all remaining nodes, this mimics the clear_element behaviour in
             // mount_with_props.
