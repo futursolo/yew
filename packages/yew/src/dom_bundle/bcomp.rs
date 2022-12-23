@@ -6,7 +6,7 @@ use std::fmt;
 
 use web_sys::Element;
 
-use super::{BNode, BSubtree, Reconcilable, ReconcileTarget};
+use super::{BNode, BSubtree, BundleLocation, Reconcilable, ReconcileTarget};
 use crate::html::{AnyScope, Scoped};
 use crate::virtual_dom::{Key, VComp};
 use crate::NodeRef;
@@ -64,15 +64,11 @@ impl Reconcilable for VComp {
             key,
             ..
         } = self;
-        let internal_ref = NodeRef::default();
 
-        let scope = mountable.mount(
-            root,
-            parent_scope,
-            parent.to_owned(),
-            internal_ref.clone(),
-            next_sibling,
-        );
+        let location = BundleLocation::new_child(root, parent.clone(), next_sibling);
+        let internal_ref = location.internal_ref.clone();
+
+        let scope = mountable.mount(parent_scope, location);
 
         (
             internal_ref.clone(),
@@ -139,15 +135,11 @@ mod feat_hydration {
                 key,
                 ..
             } = self;
-            let internal_ref = NodeRef::default();
+            let location =
+                BundleLocation::new_child(root, parent.clone(), NodeRef::new_debug_trapped());
+            let internal_ref = location.internal_ref.clone();
 
-            let scoped = mountable.hydrate(
-                root.clone(),
-                parent_scope,
-                parent.clone(),
-                internal_ref.clone(),
-                fragment,
-            );
+            let scoped = mountable.hydrate(location, parent_scope, fragment);
 
             (
                 internal_ref.clone(),

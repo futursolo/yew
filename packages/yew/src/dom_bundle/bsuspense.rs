@@ -47,7 +47,7 @@ impl ReconcileTarget for BSuspense {
 
                     #[cfg(feature = "hydration")]
                     Fallback::Fragment(fragment) => {
-                        fragment.detach(root, parent, parent_to_detach);
+                        fragment.detach(parent, parent_to_detach);
                     }
                 }
 
@@ -211,7 +211,7 @@ impl Reconcilable for VSuspense {
                     }
                     #[cfg(feature = "hydration")]
                     Some(Fallback::Fragment(fragment)) => {
-                        fragment.detach(root, parent, false);
+                        fragment.detach(parent, false);
                     }
                     None => {
                         unreachable!("None condition has been checked before.")

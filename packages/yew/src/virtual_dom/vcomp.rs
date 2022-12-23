@@ -6,12 +6,10 @@ use std::rc::Rc;
 
 #[cfg(feature = "ssr")]
 use futures::future::{FutureExt, LocalBoxFuture};
-#[cfg(feature = "csr")]
-use web_sys::Element;
 
 use super::Key;
 #[cfg(feature = "csr")]
-use crate::dom_bundle::BSubtree;
+use crate::dom_bundle::BundleLocation;
 #[cfg(feature = "hydration")]
 use crate::dom_bundle::Fragment;
 use crate::html::BaseComponent;
@@ -56,14 +54,8 @@ pub(crate) trait Mountable {
     fn copy(&self) -> Box<dyn Mountable>;
 
     #[cfg(feature = "csr")]
-    fn mount(
-        self: Box<Self>,
-        root: &BSubtree,
-        parent_scope: &AnyScope,
-        parent: Element,
-        internal_ref: NodeRef,
-        next_sibling: NodeRef,
-    ) -> Box<dyn Scoped>;
+    fn mount(self: Box<Self>, parent_scope: &AnyScope, location: BundleLocation)
+        -> Box<dyn Scoped>;
 
     #[cfg(feature = "csr")]
     fn reuse(self: Box<Self>, scope: &dyn Scoped, next_sibling: NodeRef);
@@ -79,10 +71,8 @@ pub(crate) trait Mountable {
     #[cfg(feature = "hydration")]
     fn hydrate(
         self: Box<Self>,
-        root: BSubtree,
+        location: BundleLocation,
         parent_scope: &AnyScope,
-        parent: Element,
-        internal_ref: NodeRef,
         fragment: &mut Fragment,
     ) -> Box<dyn Scoped>;
 }
@@ -108,14 +98,11 @@ impl<COMP: BaseComponent> Mountable for PropsWrapper<COMP> {
     #[cfg(feature = "csr")]
     fn mount(
         self: Box<Self>,
-        root: &BSubtree,
         parent_scope: &AnyScope,
-        parent: Element,
-        internal_ref: NodeRef,
-        next_sibling: NodeRef,
+        location: BundleLocation,
     ) -> Box<dyn Scoped> {
         let scope: Scope<COMP> = Scope::new(Some(parent_scope.clone()));
-        scope.mount_in_place(root.clone(), parent, next_sibling, internal_ref, self.props);
+        scope.mount_in_place(location, self.props);
 
         Box::new(scope)
     }
@@ -146,14 +133,12 @@ impl<COMP: BaseComponent> Mountable for PropsWrapper<COMP> {
     #[cfg(feature = "hydration")]
     fn hydrate(
         self: Box<Self>,
-        root: BSubtree,
+        location: BundleLocation,
         parent_scope: &AnyScope,
-        parent: Element,
-        internal_ref: NodeRef,
         fragment: &mut Fragment,
     ) -> Box<dyn Scoped> {
         let scope: Scope<COMP> = Scope::new(Some(parent_scope.clone()));
-        scope.hydrate_in_place(root, parent, fragment, internal_ref, self.props);
+        scope.hydrate_in_place(location, fragment, self.props);
 
         Box::new(scope)
     }

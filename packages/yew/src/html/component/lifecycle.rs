@@ -8,10 +8,10 @@ use web_sys::Element;
 
 use super::scope::{AnyScope, Scope};
 use super::BaseComponent;
-#[cfg(feature = "hydration")]
-use crate::dom_bundle::Fragment;
 #[cfg(feature = "csr")]
-use crate::dom_bundle::{BSubtree, Bundle};
+use crate::dom_bundle::Bundle;
+#[cfg(feature = "hydration")]
+use crate::dom_bundle::{BundleLocation, Fragment};
 #[cfg(feature = "csr")]
 use crate::html::NodeRef;
 #[cfg(feature = "hydration")]
@@ -23,20 +23,11 @@ use crate::{Callback, Context, HtmlResult};
 
 pub(crate) enum ComponentRenderState {
     #[cfg(feature = "csr")]
-    Render {
-        bundle: Bundle,
-        root: BSubtree,
-        parent: Element,
-        next_sibling: NodeRef,
-        internal_ref: NodeRef,
-    },
+    Render { bundle: Bundle },
     #[cfg(feature = "hydration")]
     Hydration {
         fragment: Fragment,
-        root: BSubtree,
-        parent: Element,
-        next_sibling: NodeRef,
-        internal_ref: NodeRef,
+        location: BundleLocation,
     },
     #[cfg(feature = "ssr")]
     Ssr {
@@ -48,35 +39,19 @@ impl std::fmt::Debug for ComponentRenderState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             #[cfg(feature = "csr")]
-            Self::Render {
-                ref bundle,
-                root,
-                ref parent,
-                ref next_sibling,
-                ref internal_ref,
-            } => f
+            Self::Render { ref bundle } => f
                 .debug_struct("ComponentRenderState::Render")
                 .field("bundle", bundle)
-                .field("root", root)
-                .field("parent", parent)
-                .field("next_sibling", next_sibling)
-                .field("internal_ref", internal_ref)
                 .finish(),
 
             #[cfg(feature = "hydration")]
             Self::Hydration {
                 ref fragment,
-                ref parent,
-                ref next_sibling,
-                ref internal_ref,
-                ref root,
+                ref location,
             } => f
                 .debug_struct("ComponentRenderState::Hydration")
                 .field("fragment", fragment)
-                .field("root", root)
-                .field("parent", parent)
-                .field("next_sibling", next_sibling)
-                .field("internal_ref", internal_ref)
+                .field("location", location)
                 .finish(),
 
             #[cfg(feature = "ssr")]
@@ -96,31 +71,18 @@ impl std::fmt::Debug for ComponentRenderState {
 
 #[cfg(feature = "csr")]
 impl ComponentRenderState {
-    pub(crate) fn shift(&mut self, next_parent: Element, next_next_sibling: NodeRef) {
+    pub(crate) fn shift(&mut self, new_parent: Element, new_next_sibling: NodeRef) {
         match self {
             #[cfg(feature = "csr")]
-            Self::Render {
-                bundle,
-                parent,
-                next_sibling,
-                ..
-            } => {
-                bundle.shift(&next_parent, next_next_sibling.clone());
-
-                *parent = next_parent;
-                next_sibling.link(next_next_sibling);
+            Self::Render { bundle, .. } => {
+                bundle.shift(new_parent, new_next_sibling);
             }
             #[cfg(feature = "hydration")]
-            Self::Hydration {
-                fragment,
-                parent,
-                next_sibling,
-                ..
-            } => {
-                fragment.shift(&next_parent, next_next_sibling.clone());
+            Self::Hydration { fragment, location } => {
+                fragment.shift(&new_parent, new_next_sibling.clone());
 
-                *parent = next_parent;
-                next_sibling.link(next_next_sibling);
+                location.parent = new_parent;
+                location.next_sibling.link(new_next_sibling);
             }
 
             #[cfg(feature = "ssr")]
@@ -383,29 +345,18 @@ impl ComponentState {
 
         match self.render_state {
             #[cfg(feature = "csr")]
-            ComponentRenderState::Render {
-                bundle,
-                ref parent,
-                ref internal_ref,
-                ref root,
-                ..
-            } => {
-                bundle.detach(root, parent, parent_to_detach);
-
-                internal_ref.set(None);
+            ComponentRenderState::Render { bundle, .. } => {
+                bundle.detach(parent_to_detach);
             }
             // We need to detach the hydrate fragment if the component is not hydrated.
             #[cfg(feature = "hydration")]
             ComponentRenderState::Hydration {
-                ref root,
                 fragment,
-                ref parent,
-                ref internal_ref,
+                ref location,
                 ..
             } => {
-                fragment.detach(root, parent, parent_to_detach);
-
-                internal_ref.set(None);
+                fragment.detach(&location.parent, parent_to_detach);
+                location.internal_ref.set(None);
             }
 
             #[cfg(feature = "ssr")]
@@ -492,22 +443,9 @@ impl ComponentState {
 
         match self.render_state {
             #[cfg(feature = "csr")]
-            ComponentRenderState::Render {
-                ref mut bundle,
-                ref parent,
-                ref root,
-                ref next_sibling,
-                ref internal_ref,
-                ..
-            } => {
+            ComponentRenderState::Render { ref mut bundle } => {
                 let scope = self.inner.any_scope();
-
-                #[cfg(feature = "hydration")]
-                next_sibling.debug_assert_not_trapped();
-
-                let new_node_ref =
-                    bundle.reconcile(root, &scope, parent, next_sibling.clone(), new_root);
-                internal_ref.link(new_node_ref);
+                bundle.reconcile(&scope, new_root);
 
                 let first_render = !self.has_rendered;
                 self.has_rendered = true;
@@ -525,10 +463,7 @@ impl ComponentState {
             #[cfg(feature = "hydration")]
             ComponentRenderState::Hydration {
                 ref mut fragment,
-                ref parent,
-                ref internal_ref,
-                ref next_sibling,
-                ref root,
+                ref location,
             } => {
                 // We schedule a "first" render to run immediately after hydration,
                 // to fix NodeRefs (first_node and next_sibling).
@@ -544,22 +479,14 @@ impl ComponentState {
                 // This first node is not guaranteed to be correct here.
                 // As it may be a comment node that is removed afterwards.
                 // but we link it anyways.
-                let (node, bundle) = Bundle::hydrate(root, &scope, parent, fragment, new_root);
+                let bundle = Bundle::hydrate(&scope, location.clone(), fragment, new_root);
 
                 // We trim all text nodes before checking as it's likely these are whitespaces.
-                fragment.trim_start_text_nodes(parent);
+                fragment.trim_start_text_nodes(&location.parent);
 
                 assert!(fragment.is_empty(), "expected end of component, found node");
 
-                internal_ref.link(node);
-
-                self.render_state = ComponentRenderState::Render {
-                    root: root.clone(),
-                    bundle,
-                    parent: parent.clone(),
-                    internal_ref: internal_ref.clone(),
-                    next_sibling: next_sibling.clone(),
-                };
+                self.render_state = ComponentRenderState::Render { bundle };
             }
 
             #[cfg(feature = "ssr")]
@@ -608,19 +535,13 @@ mod feat_csr {
                 // components.
                 match self.render_state {
                     #[cfg(feature = "csr")]
-                    ComponentRenderState::Render {
-                        next_sibling: ref current_next_sibling,
-                        ..
-                    } => {
-                        current_next_sibling.link(next_sibling);
+                    ComponentRenderState::Render { ref bundle } => {
+                        bundle.location.next_sibling.link(next_sibling);
                     }
 
                     #[cfg(feature = "hydration")]
-                    ComponentRenderState::Hydration {
-                        next_sibling: ref current_next_sibling,
-                        ..
-                    } => {
-                        current_next_sibling.link(next_sibling);
+                    ComponentRenderState::Hydration { ref location, .. } => {
+                        location.next_sibling.link(next_sibling);
                     }
 
                     #[cfg(feature = "ssr")]

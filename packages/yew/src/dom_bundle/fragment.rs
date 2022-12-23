@@ -3,25 +3,26 @@ use std::ops::{Deref, DerefMut};
 
 use web_sys::{Element, Node};
 
-use crate::dom_bundle::BSubtree;
 use crate::html::NodeRef;
 use crate::virtual_dom::Collectable;
 
 /// A Hydration Fragment
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct Fragment(VecDeque<Node>);
+pub(crate) struct Fragment {
+    nodes: VecDeque<Node>,
+}
 
 impl Deref for Fragment {
     type Target = VecDeque<Node>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.nodes
     }
 }
 
 impl DerefMut for Fragment {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.nodes
     }
 }
 
@@ -39,7 +40,7 @@ impl Fragment {
             fragment.push_back(m);
         }
 
-        Self(fragment)
+        Self { nodes: fragment }
     }
 
     /// Collects nodes for a Component Bundle or a BSuspense.
@@ -118,7 +119,7 @@ impl Fragment {
             nodes.push_back(current_node.clone());
         }
 
-        Self(nodes)
+        Self { nodes }
     }
 
     /// Remove child nodes until first non-text node.
@@ -141,11 +142,11 @@ impl Fragment {
             .map(|m| m.clone_node_with_deep(true).expect("failed to clone node."))
             .collect::<VecDeque<_>>();
 
-        Self(nodes)
+        Self { nodes }
     }
 
     // detaches current fragment.
-    pub fn detach(self, _root: &BSubtree, parent: &Element, parent_to_detach: bool) {
+    pub fn detach(self, parent: &Element, parent_to_detach: bool) {
         if !parent_to_detach {
             for node in self.iter() {
                 parent

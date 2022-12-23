@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use web_sys::Element;
 
-use crate::dom_bundle::BSubtree;
+use crate::dom_bundle::BundleLocation;
 use crate::html::{BaseComponent, NodeRef, Scope, Scoped};
 
 /// An instance of an application.
@@ -34,14 +34,8 @@ where
         let app = Self {
             scope: Scope::new(None),
         };
-        let hosting_root = BSubtree::create_root(&host);
-        app.scope.mount_in_place(
-            hosting_root,
-            host,
-            NodeRef::default(),
-            NodeRef::default(),
-            props,
-        );
+        let location = BundleLocation::new(host);
+        app.scope.mount_in_place(location, props);
 
         app
     }
@@ -109,15 +103,10 @@ mod feat_hydration {
             };
 
             let mut fragment = Fragment::collect_children(&host);
-            let hosting_root = BSubtree::create_root(&host);
+            let location = BundleLocation::new(host.clone());
 
-            app.scope.hydrate_in_place(
-                hosting_root,
-                host.clone(),
-                &mut fragment,
-                NodeRef::default(),
-                Rc::clone(&props),
-            );
+            app.scope
+                .hydrate_in_place(location, &mut fragment, Rc::clone(&props));
             #[cfg(debug_assertions)] // Fix trapped next_sibling at the root
             app.scope.reuse(props, NodeRef::default());
 

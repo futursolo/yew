@@ -520,7 +520,7 @@ mod feat_csr {
     use web_sys::Element;
 
     use super::*;
-    use crate::dom_bundle::{BSubtree, Bundle};
+    use crate::dom_bundle::{Bundle, BundleLocation};
     use crate::html::component::lifecycle::{
         ComponentRenderState, CreateRunner, DestroyRunner, PropsUpdateRunner, RenderRunner,
     };
@@ -557,25 +557,9 @@ mod feat_csr {
         COMP: BaseComponent,
     {
         /// Mounts a component with `props` to the specified `element` in the DOM.
-        pub(crate) fn mount_in_place(
-            &self,
-            root: BSubtree,
-            parent: Element,
-            next_sibling: NodeRef,
-            internal_ref: NodeRef,
-            props: Rc<COMP::Properties>,
-        ) {
-            let bundle = Bundle::new();
-            internal_ref.link(next_sibling.clone());
-            let stable_next_sibling = NodeRef::default();
-            stable_next_sibling.link(next_sibling);
-            let state = ComponentRenderState::Render {
-                bundle,
-                root,
-                internal_ref,
-                parent,
-                next_sibling: stable_next_sibling,
-            };
+        pub(crate) fn mount_in_place(&self, location: BundleLocation, props: Rc<COMP::Properties>) {
+            let bundle = Bundle::new(location);
+            let state = ComponentRenderState::Render { bundle };
 
             scheduler::push_component_create(
                 self.id,
@@ -654,10 +638,10 @@ pub(crate) use feat_csr::*;
 #[cfg(feature = "hydration")]
 mod feat_hydration {
     use wasm_bindgen::JsCast;
-    use web_sys::{Element, HtmlScriptElement};
+    use web_sys::HtmlScriptElement;
 
     use super::*;
-    use crate::dom_bundle::{BSubtree, Fragment};
+    use crate::dom_bundle::{BundleLocation, Fragment};
     use crate::html::component::lifecycle::{ComponentRenderState, CreateRunner, RenderRunner};
     use crate::html::NodeRef;
     use crate::scheduler;
@@ -677,10 +661,8 @@ mod feat_hydration {
         /// immediately.
         pub(crate) fn hydrate_in_place(
             &self,
-            root: BSubtree,
-            parent: Element,
+            location: BundleLocation,
             fragment: &mut Fragment,
-            internal_ref: NodeRef,
             props: Rc<COMP::Properties>,
         ) {
             // This is very helpful to see which component is failing during hydration
@@ -694,13 +676,13 @@ mod feat_hydration {
 
             let collectable = Collectable::for_component::<COMP>();
 
-            let mut fragment = Fragment::collect_between(fragment, &collectable, &parent);
+            let mut fragment = Fragment::collect_between(fragment, &collectable, &location.parent);
             match fragment.front().cloned() {
-                front @ Some(_) => internal_ref.set(front),
+                front @ Some(_) => location.internal_ref.set(front),
                 None =>
                 {
                     #[cfg(debug_assertions)]
-                    internal_ref.link(NodeRef::new_debug_trapped())
+                    location.internal_ref.link(NodeRef::new_debug_trapped())
                 }
             }
 
@@ -711,19 +693,13 @@ mod feat_hydration {
             {
                 Some(m) if m.type_() == "application/x-yew-comp-state" => {
                     fragment.pop_back();
-                    parent.remove_child(&m).unwrap();
+                    location.parent.remove_child(&m).unwrap();
                     Some(m.text().unwrap())
                 }
                 _ => None,
             };
 
-            let state = ComponentRenderState::Hydration {
-                parent,
-                root,
-                internal_ref,
-                next_sibling: NodeRef::new_debug_trapped(),
-                fragment,
-            };
+            let state = ComponentRenderState::Hydration { fragment, location };
 
             scheduler::push_component_create(
                 self.id,
