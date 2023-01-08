@@ -65,9 +65,11 @@ impl Reconcilable for VComp {
             ..
         } = self;
 
-        let location = BundleLocation::new_child(root, parent.clone(), next_sibling);
+        let stable_next_sibling = NodeRef::default();
+        stable_next_sibling.link(next_sibling);
+
+        let location = BundleLocation::new_child(root, parent.clone(), stable_next_sibling.clone());
         let internal_ref = location.internal_ref.clone();
-        let stable_next_sibling = location.next_sibling.clone();
 
         let scope = mountable.mount(parent_scope, location);
 
@@ -138,10 +140,11 @@ mod feat_hydration {
                 key,
                 ..
             } = self;
+            let stable_next_sibling = NodeRef::new_debug_trapped();
+
             let location =
-                BundleLocation::new_child(root, parent.clone(), NodeRef::new_debug_trapped());
+                BundleLocation::new_child(root, parent.clone(), stable_next_sibling.clone());
             let internal_ref = location.internal_ref.clone();
-            let stable_next_sibling = location.next_sibling.clone();
 
             let scoped = mountable.hydrate(location, parent_scope, fragment);
 

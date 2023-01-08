@@ -85,7 +85,7 @@ fn next_root_id() -> TreeId {
 /// [Portal]: super::bportal::BPortal
 /// [AppHandle]: super::app_handle::AppHandle
 #[derive(Debug, Clone)]
-pub(super) struct BSubtree(Rc<SubtreeData>);
+pub(crate) struct BSubtree(Rc<SubtreeData>);
 
 /// The parent is the logical location where a subtree is mounted
 /// Used to bubble events through portals, which are physically somewhere else in the DOM tree

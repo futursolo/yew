@@ -89,7 +89,7 @@ mod tests {
     use crate::html::AnyScope;
     use crate::NodeRef;
 
-    pub(super) fn setup_parent() -> (BSubtree, AnyScope, Element) {
+    pub(in crate::dom_bundle) fn setup_parent() -> (BSubtree, AnyScope, Element) {
         let scope = AnyScope::test();
         let parent = document().create_element("div").unwrap();
         let root = BSubtree::create_root(&parent);
@@ -101,7 +101,8 @@ mod tests {
 
     pub const SIBLING_CONTENT: &str = "END";
 
-    pub(super) fn setup_parent_and_sibling() -> (BSubtree, AnyScope, Element, NodeRef) {
+    pub(in crate::dom_bundle) fn setup_parent_and_sibling() -> (BSubtree, AnyScope, Element, NodeRef)
+    {
         let scope = AnyScope::test();
         let parent = document().create_element("div").unwrap();
         let root = BSubtree::create_root(&parent);

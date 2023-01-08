@@ -656,7 +656,6 @@ mod tests {
     use wasm_bindgen_test::{wasm_bindgen_test as test, wasm_bindgen_test_configure};
 
     use super::*;
-    use crate::dom_bundle::BSubtree;
     use crate::html::*;
     use crate::{html, Properties};
 
@@ -773,18 +772,12 @@ mod tests {
         let document = gloo::utils::document();
         let scope = Scope::<Comp>::new(None);
         let parent = document.create_element("div").unwrap();
-        let root = BSubtree::create_root(&parent);
 
         let lifecycle = props.lifecycle.clone();
+        let location = BundleLocation::new(parent);
 
         lifecycle.borrow_mut().clear();
-        scope.mount_in_place(
-            root,
-            parent,
-            NodeRef::default(),
-            NodeRef::default(),
-            Rc::new(props),
-        );
+        scope.mount_in_place(location, Rc::new(props));
         crate::scheduler::start_now();
 
         assert_eq!(&lifecycle.borrow_mut().deref()[..], expected);

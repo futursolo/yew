@@ -32,7 +32,8 @@ use bsuspense::BSuspense;
 use btag::{BTag, Registry};
 use btext::BText;
 pub use subtree_root::set_event_bubbling;
-use subtree_root::{BSubtree, EventDescriptor};
+pub(crate) use subtree_root::BSubtree;
+use subtree_root::EventDescriptor;
 use traits::{Reconcilable, ReconcileTarget};
 use utils::{insert_node, test_log};
 
@@ -90,7 +91,6 @@ pub(crate) struct Bundle {
 
 impl Bundle {
     /// Creates a new bundle.
-
     pub fn new(location: BundleLocation) -> Self {
         Self {
             layout: BNode::List(BList::new()),
