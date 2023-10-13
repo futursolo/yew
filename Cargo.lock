@@ -1058,7 +1058,7 @@ dependencies = [
  "gloo-storage 0.3.0",
  "gloo-timers 0.3.0",
  "gloo-utils 0.2.0",
- "gloo-worker 0.4.0",
+ "gloo-worker 0.4.1",
 ]
 
 [[package]]
@@ -1343,9 +1343,9 @@ dependencies = [
 
 [[package]]
 name = "gloo-worker"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76495d3dd87de51da268fa3a593da118ab43eb7f8809e17eb38d3319b424e400"
+checksum = "f2cbd4c35cc3a2b1fb792318acc06bd514193f6d058173da5cdbcdabe6514303"
 dependencies = [
  "bincode",
  "futures 0.3.28",
@@ -3720,7 +3720,7 @@ name = "yew-agent"
 version = "0.3.0"
 dependencies = [
  "futures 0.3.28",
- "gloo-worker 0.4.0",
+ "gloo-worker 0.4.1",
  "serde",
  "wasm-bindgen",
  "yew",
